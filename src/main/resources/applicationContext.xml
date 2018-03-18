@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:aop="http://www.springframework.org/schema/aop"
+    xmlns:context="http://www.springframework.org/schema/context"
+    xmlns:jpa="http://www.springframework.org/schema/data/jpa" xmlns:mvc="http://www.springframework.org/schema/mvc"
+    xmlns:tx="http://www.springframework.org/schema/tx"
+    xmlns:util="http://www.springframework.org/schema/util"
+    xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.0.xsd
+    http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-4.0.xsd
+    http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.0.xsd
+    http://www.springframework.org/schema/mvc http://www.springframework.org/schema/mvc/spring-mvc-4.0.xsd
+    http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-4.0.xsd
+    http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util-4.0.xsd">
+    
+    
+    <!-- 自动扫描组件，包括@Controller,@Service,@Repository这里要把里面的 controller去除，他们已经在spring-servlet.xml中配置了,也就是已经加入beanFactory，否则会影响注入 -->
+    <context:component-scan base-package="com.lym">
+        <context:exclude-filter type="regex" expression="com.lym.controller" />
+    </context:component-scan>
+    
+    <!-- 加载db配置 -->
+    <context:property-placeholder location="classpath:db.properties"/>
+    
+    <!-- 配置数据库连接池及其属性  -->
+    <bean id="dataSource" class="com.alibaba.druid.pool.DruidDataSource" init-method="init" destroy-method="close">
+        <!-- 基本属性 url、user、password -->
+        <property name="driverClassName" value="${jdbc.driver}" />
+        <property name="url" value="${jdbc.url}" />
+        <property name="username" value="${jdbc.user}" />
+        <property name="password" value="${jdbc.password}" />
+    
+        <!-- 配置监控统计拦截的filters -->
+        <property name="filters" value="stat" />
+    
+        <!-- 配置初始化大小、最小、最大 -->
+        <property name="maxActive" value="20" />
+        <property name="initialSize" value="1" />
+        <property name="minIdle" value="1" />
+    
+        <!-- 配置获取连接等待超时的时间 -->
+        <property name="maxWait" value="60000" />
+    
+        <!-- 配置间隔多久才进行一次检测，检测需要关闭的空闲连接，单位是毫秒 -->
+        <property name="timeBetweenEvictionRunsMillis" value="60000" />
+    
+        <!-- 配置一个连接在池中最小生存的时间，单位是毫秒 -->
+        <property name="minEvictableIdleTimeMillis" value="300000" />
+    
+        <property name="testWhileIdle" value="true" />
+        <property name="testOnBorrow" value="false" />
+        <property name="testOnReturn" value="false" />
+    
+        <!-- 打开PSCache，并且指定每个连接上PSCache的大小 -->
+        <property name="poolPreparedStatements" value="true" />
+        <property name="maxOpenPreparedStatements" value="20" />
+    </bean>
+
+	<!-- Redis和缓存配置开始 -->
+	<!-- jedis 配置 -->
+	<bean id="poolConfig" class="redis.clients.jedis.JedisPoolConfig">
+		<property name="maxIdle" value="100" />
+		<property name="maxWaitMillis" value="1000" />
+		<property name="testOnBorrow" value="true" />
+	</bean>
+
+	<!-- redis连接池 -->
+	<bean id="jedisPool" class="redis.clients.jedis.JedisPool"
+		destroy-method="close">
+		<constructor-arg name="poolConfig" ref="poolConfig" />
+		<constructor-arg name="host" value="127.0.0.1" />
+		<constructor-arg name="port" value="6379" />
+	</bean>
+
+	<!-- redis服务器中心 -->
+	<bean id="connectionFactory"
+		class="org.springframework.data.redis.connection.jedis.JedisConnectionFactory">
+		<property name="poolConfig" ref="poolConfig" />
+		<property name="port" value="6379" />
+		<property name="hostName" value="127.0.0.1" />
+		<!-- <property name="password" value="${redis.password}" /> -->
+		<property name="timeout" value="10000"></property>
+	</bean>
+	<bean id="redisTemplate" class="org.springframework.data.redis.core.RedisTemplate">
+		<property name="connectionFactory" ref="connectionFactory" />
+		<property name="keySerializer">
+			<bean class="org.springframework.data.redis.serializer.StringRedisSerializer" />
+		</property>
+		<property name="valueSerializer">
+			<bean class="org.springframework.data.redis.serializer.StringRedisSerializer" />
+		</property>
+	</bean>
+
+	<!-- cache配置 -->
+	<!--
+	<bean id="putCache" class="com.spring_redis.cache.PutCacheAOP">
+		<property name="redisTemplate" ref="redisTemplate" />
+	</bean>
+
+	<bean id="getCache" class="com.spring_redis.cache.GetCacheAOP">
+		<property name="redisTemplate" ref="redisTemplate" />
+	</bean>
+	-->
+	<bean id="redisCache" class="com.lym.util.RedisCache">
+        <property name="jedisPool" ref="jedisPool"></property>
+    </bean>
+    
+    <!-- Redis和缓存配置结束 -->
+
+    <!-- mybatis配置 -->
+    <bean id="sqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+        <property name="dataSource" ref="dataSource"/>
+        <!-- 扫描entity下的实体，方便在mapper下的xml中使用别名，例如User则会找到com.lym.entity.User -->
+        <property name="typeAliasesPackage" value="com.lym.entity"/>
+        <!-- 自动扫描mapper下的*.xml文件 -->
+        <property name="mapperLocations" value="classpath:mapper/*.xml"/>
+    </bean>
+    
+    <!-- mapper扫描器，spring与mybatis整合配置-->
+    <bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+        <property name="basePackage" value="com.lym.dao"/>
+        <property name="sqlSessionFactoryBeanName" value="sqlSessionFactory"/>
+    </bean>
+    
+    <!-- shiro配置 -->
+    <!-- 配置Realm -->
+    <!-- 直接配置继承了org.apache.shiro.realm.AuthorizingRealm的bean -->
+	<bean id="userRealm" class="com.lym.shiro.UserRealm">
+		<!-- 配置自定义密码匹配器 -->
+		<property name="credentialsMatcher" ref="credentialsMatcher" />
+	</bean>
+
+	<!-- 自定义密码匹配器 -->
+	<bean id="credentialsMatcher" class="com.lym.shiro.CustomCredentialsMatcher" />
+    
+    <!-- 暂时不用密码匹配器
+    <bean id="userRealm" class="com.lym.shiro.UserRealm">
+        //配置密码匹配器
+        <property name="credentialsMatcher">
+            <bean class="org.apache.shiro.authc.credential.HashedCredentialsMatcher">
+                //加密算法为MD5
+                <property name="hashAlgorithmName" value="MD5"></property>
+                //加密迭代次数 
+                <property name="hashIterations" value="1024"></property>
+                //为true时使用Hex编码(默认)，false时使用Base64编码
+                <property name="storedCredentialsHexEncoded" value="true"/>
+            </bean>
+        </property>
+    </bean>
+    -->
+    
+    <!-- 配置CacheManager缓存管理器 -->
+    <bean id="cacheManager" class="org.apache.shiro.cache.ehcache.EhCacheManager">
+        <property name="cacheManagerConfigFile" value="classpath:ehcache.xml" />
+    </bean>
+    
+    <!-- 配置SecurityManager安全管理器 -->
+    <bean id="securityManager" class="org.apache.shiro.web.mgt.DefaultWebSecurityManager">
+        <property name="cacheManager" ref="cacheManager" />
+        <!-- <property name="authenticator" ref="authenticator"></property> -->
+        <!-- 可以配置多个Realm，其实会把realms属性赋值给ModularRealmAuthenticator的realms属性 -->
+        <!-- <property name="realm" ref="userRealm"/> -->
+        <property name="realms">
+            <list>
+                <ref bean="userRealm" />
+            </list>
+        </property>
+    </bean>
+    
+    <!-- 配置ShiroFilter过滤器 -->
+    <!-- id必须和web.xml中配置的DelegatingFilterProxy的<filter-name>一致。 如果不一致，会抛出NoSuchBeanDefinitionException异常，因为shiro会在IOC容器中查找名称和<filter-name>值一致的filter bean -->
+    <bean id="shiroFilter" class="org.apache.shiro.spring.web.ShiroFilterFactoryBean">
+        <!-- Shiro的核心安全接口 -->
+        <property name="securityManager" ref="securityManager" />
+        <!-- 身份认证失败，则跳转到登录页面的配置，非必须的属性，默认会自动寻找Web工程根目录下的"/login.jsp"页面，也可以直接在代码中编写 -->
+        <!-- <property name="loginUrl" value="/login.jsp" /> -->
+        <!-- 身份认证成功，则跳转到登录页面的配置，非必须的属性，可在代码中自行编写 -->
+        <!-- <property name="successUrl" value="/WEB-INF/user/index.jsp" /> -->
+        <!-- 权限认证失败，则跳转到指定页面，非必须的属性，可在代码中自行编写 -->
+        <!-- <property name="unauthorizedUrl" value="/login.jsp" /> -->
+        <!-- 具体配置需要拦截哪些 URL，以及访问对应的URL时使用Shiro的什么Filter进行拦截 -->
+        <property name="filterChainDefinitions">
+            <value>
+				<!-- 过滤链定义，第一次匹配优先的原则，从上向下顺序执行，匹配了其中一项，则后面的不再匹配，一般将 / ** 放在最为下边:这是一个坑呢，一不小心代码就不好使了 -->
+                <!-- authc:所有url都必须认证通过才可以访问;anon:所有url都都可以匿名访问 -->
+                / = anon
+                /register.jsp = anon
+                /user/register = anon
+                /login.jsp = anon
+                /user/login = anon
+                /logout = logout
+                /role = anon
+                /role/** = anon
+                /permission = anon
+                /permission/** = anon
+                /** = authc
+                <!-- /index.jsp = authc -->
+                <!-- /index/** = authc -->
+            </value>
+        </property>
+    </bean>
+
+    <!-- 定义事务管理器 对mybatis操作数据库的控制，spring使用jdbc的事务控制-->
+    <bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="dataSource"/>
+    </bean>
+    
+    <!-- 启用对事物的注解支持-->
+    <tx:annotation-driven transaction-manager="transactionManager"/>
+
+    <aop:aspectj-autoproxy proxy-target-class="true" />
+    
+</beans>

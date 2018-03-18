@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.lym.dao.PermissionDao">
+
+    <resultMap id="BaseResultMap" type="com.lym.vo.bo.UserPermissionBo">
+        <id column="id" property="userId" />
+        <result column="username" property="userName" />
+        <result column="nickname" property="nickName" />
+        <result column="role_name" property="roleName" />
+        <collection property="perimissionCodeList" ofType="String">
+            <id column="permission_code" property="perimissionCode"/>
+        </collection>
+    </resultMap>
+    
+    <insert id="add" parameterType="Permission">
+        insert into permission (
+            permission_code,
+            permission_name)
+        values (
+            #{permissionCode},
+            #{permissionName})
+    </insert>
+    
+    <insert id="addToRole">
+        insert into role_permission (
+            role_id,
+            permission_id)
+        values (
+            #{roleId},
+            #{permissionId})
+    </insert>
+    
+    <select id="getPermissionList" parameterType="int" resultType="Permission">
+        select
+            p.id as "id",
+            p.permission_code as "permissionCode",
+            p.permission_name as "permissionName"
+        from role_permission rp
+        left join permission p on rp.permission_id = p.id
+        where role_id = #{roleId}
+    </select>
+    
+    <select id="get" resultMap="BaseResultMap">
+        SELECT
+		    u.id,
+		    u.username,
+		    u.nickname,
+		    r.role_name,
+		    permission_code
+		FROM
+		    USER u
+		INNER JOIN role r
+		LEFT JOIN role_permission rp ON r.id = rp.role_id
+		LEFT JOIN permission p ON p.id = rp.permission_id
+		WHERE
+		    u.id = #{userId}
+		AND r.id = #{roleId}
+    </select>
+    
+</mapper>

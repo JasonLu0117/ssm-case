@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:p="http://www.springframework.org/schema/p"
+    xmlns:context="http://www.springframework.org/schema/context"
+    xmlns:mvc="http://www.springframework.org/schema/mvc"
+    xmlns:aop="http://www.springframework.org/schema/aop"
+    xsi:schemaLocation="http://www.springframework.org/schema/beans 
+    http://www.springframework.org/schema/beans/spring-beans-3.0.xsd 
+    http://www.springframework.org/schema/context 
+    http://www.springframework.org/schema/context/spring-context-3.0.xsd
+    http://www.springframework.org/schema/mvc
+    http://www.springframework.org/schema/mvc/spring-mvc-3.0.xsd
+    http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-4.0.xsd">
+
+    <!-- 拦截器配置 -->
+    <mvc:interceptors>
+        <!-- 如果不定义 mvc:mapping path 将拦截所有的URL请求 -->
+        <!-- <mvc:mapping path="/*" /> -->
+        <bean class="com.lym.intercept.CrosInterceptor"></bean>
+    </mvc:interceptors>
+    
+	<!-- mvc:annotation-driven注册了 RequestMappingHandlerMapping, and RequestMappingHandlerAdapter,and 
+		and ExceptionHandlerExceptionResolver。它能启动@RequestMapping,@ExceptionHandler, 
+		and others注解 -->
+    <!-- 开启SpringMVC注解模式，简化了配置： 
+        (1)自动注册DefaultAnootationHandlerMapping,AnotationMethodHandlerAdapter 
+        (2)提供一些列：数据绑定，数字和日期的format @NumberFormat, @DateTimeFormat, xml,json默认读写支持 
+    -->
+	<mvc:annotation-driven />
+	<!-- 把无法mapping到Controller的path交给default servlet handler处理 -->
+	<mvc:default-servlet-handler />
+	<!-- 对web包中的Controller类进行扫描，以完成Bean创建和自动依赖注入的功能 -->
+	<context:component-scan base-package="com.lym.controller" />
+    
+	<!-- 根据上面的描述，可简化这部分
+    <bean class="org.springframework.web.servlet.mvc.annotation.DefaultAnnotationHandlerMapping" />
+    <bean class="org.springframework.web.servlet.mvc.annotation.AnnotationMethodHandlerAdapter">
+        <property name="cacheSeconds" value="0" />
+    </bean>
+    -->
+    
+    <!-- 基于注解实现aop -->
+    <!-- <aop:aspectj-autoproxy proxy-target-class="true" /> -->
+    
+    <!-- 基于xml配置aop -->
+    <!-- 强制使用cglib代理，如果不设置，将默认使用jdk的代理，但是jdk的代理是基于接口的 -->
+    <!-- 因为applicationContext.xml中扫描包时，排除了controller包，放到那里这个aop无法起效，所以放到这里，这里开头扫描了controller包 -->
+    <!-- <aop:config proxy-target-class="true" /> -->
+    <!-- <aop:config> -->
+        <!--定义切面 -->
+        <!-- <aop:aspect id="logAspect" ref="logInterceptor"> -->
+            <!-- 定义切入点 (配置在com.lym.controller下所有的类在调用之前都会被拦截) -->
+            <!-- <aop:pointcut expression="execution(* com.lym.controller.*.*(..))"
+                id="logPointCut" /> -->
+            <!--方法执行之前被调用执行的，一个切入点的引用 -->
+            <!-- <aop:before method="before" pointcut-ref="logPointCut" /> -->
+            <!--方法执行之后被调用执行的，一个切入点的引用 -->
+            <!-- <aop:after method="after" pointcut-ref="logPointCut" /> -->
+        <!-- </aop:aspect> -->
+    <!-- </aop:config> -->
+
+    <!-- 配置LifecycleBeanPostProcessor，可以自定义地来调用配置在Spring IOC容器中shiro bean的生命周期方法，保证实现了Shiro内部lifecycle函数的bean执行 -->
+    <bean id="lifecycleBeanPostProcessor" class="org.apache.shiro.spring.LifecycleBeanPostProcessor" />
+    <!-- 使其能够在IOC容器中使用shiro的注解，但必须在配置了LifecycleBeanPostProcessor之后才可以使用 -->
+    <bean class="org.springframework.aop.framework.autoproxy.DefaultAdvisorAutoProxyCreator" depends-on="lifecycleBeanPostProcessor" />
+    <!-- 保证实现了Shiro内部lifecycle函数的bean执行 -->
+    <bean class="org.apache.shiro.spring.security.interceptor.AuthorizationAttributeSourceAdvisor">
+        <property name="securityManager" ref="securityManager" />
+    </bean>
+    
+    <!-- 视图解析器 -->
+    <bean id="viewResolver" class="org.springframework.web.servlet.view.InternalResourceViewResolver">
+        <property name="prefix" value="/WEB-INF/jsp"></property>
+        <property name="suffix" value=".jsp"></property>
+    </bean>
+    
+</beans>
