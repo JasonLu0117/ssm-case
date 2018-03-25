@@ -8,8 +8,8 @@
         <result column="username" property="userName" />
         <result column="nickname" property="nickName" />
         <result column="role_name" property="roleName" />
-        <collection property="perimissionCodeList" ofType="String">
-            <id column="permission_code" property="perimissionCode"/>
+        <collection property="permissionCodeList" ofType="String">
+            <id column="permission_code" property="permissionCode"/>
         </collection>
     </resultMap>
     

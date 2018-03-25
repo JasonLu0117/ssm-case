@@ -10,6 +10,9 @@ import javax.servlet.http.HttpSession;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
+import org.apache.shiro.SecurityUtils;
+
+import com.lym.util.constants.Constants;
 
 /**
  * @Description: 验证码生成工具
@@ -117,8 +120,9 @@ public class CaptchaUtil {
      * @param code
      * @throws Exception 
      */
-    public void checkCode(HttpSession session, String code) throws Exception {
-        String codeSession = (String) session.getAttribute("code");
+    public static void checkCode(String code) throws Exception {
+//        String codeSession = (String) session.getAttribute("code");
+        String codeSession = (String) SecurityUtils.getSubject().getSession().getAttribute(Constants.SESSION_CAPTCHA);
         if (StringUtils.isEmpty(codeSession)) {
             logger.error("没有生成验证码信息");
             throw new IllegalStateException("ERR-01000");

@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import com.lym.vo.BaseVo;
 
 @Controller
-public class ArticleController {
+public class ArticleController extends BaseController {
 
     private final Logger logger = Logger.getLogger(ArticleController.class);
 
@@ -23,7 +23,13 @@ public class ArticleController {
     @RequestMapping(value="/article/list", method=RequestMethod.GET)
     @ResponseBody
     public BaseVo addUser(HttpServletRequest request) {
-        System.out.println("---------article----------");
+        try {
+            System.out.println("---------article----------");
+        } catch (Exception e) {
+            // 用BaseController捕获登录和授权异常后，这里不会再捕获。
+            // 这里只捕获登录/授权以外的异常。
+            e.printStackTrace();
+        }
         return null;
     }
     

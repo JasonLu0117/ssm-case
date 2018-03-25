@@ -8,7 +8,7 @@ public class UserPermissionBo {
     private String userName;
     private String nickName;
     private String roleName;
-    private List<String> perimissionCodeList;
+    private List<String> permissionCodeList;
     
     public int getUserId() {
         return userId;
@@ -34,10 +34,10 @@ public class UserPermissionBo {
     public void setRoleName(String roleName) {
         this.roleName = roleName;
     }
-    public List<String> getPerimissionCodeList() {
-        return perimissionCodeList;
+    public List<String> getPermissionCodeList() {
+        return permissionCodeList;
     }
-    public void setPerimissionCodeList(List<String> perimissionCodeList) {
-        this.perimissionCodeList = perimissionCodeList;
+    public void setPermissionCodeList(List<String> permissionCodeList) {
+        this.permissionCodeList = permissionCodeList;
     }
 }

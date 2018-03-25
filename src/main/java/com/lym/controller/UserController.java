@@ -199,7 +199,8 @@ public class UserController {
         CaptchaUtil util = CaptchaUtil.Instance();
         // 将验证码输入到session中，用来验证
         String code = util.getString();
-        request.getSession().setAttribute("code", code);
+//        request.getSession().setAttribute("code", code);
+        SecurityUtils.getSubject().getSession().setAttribute(Constants.SESSION_CAPTCHA, code);
         // 输出打web页面
         try {
             ImageIO.write(util.getImage(), "jpg", response.getOutputStream());
@@ -253,11 +254,17 @@ public class UserController {
     public String login(HttpServletRequest request) {
         String username = request.getParameter("username");
         String password = request.getParameter("password");
+        String code = request.getParameter("code");
         int roleId = Integer.valueOf(request.getParameter("roleId"));
         Subject subject = SecurityUtils.getSubject();
         UsernamePasswordToken token = new UsernamePasswordToken(username, password);
         
         try {
+            try {
+                CaptchaUtil.checkCode(code);
+            } catch (Exception e) {
+                return "code error";
+            }
             subject.login(token);
             // 从session中取出user
             User user = (User) SecurityUtils.getSubject().getSession().getAttribute(Constants.SESSION_USER_INFO);
@@ -266,7 +273,7 @@ public class UserController {
             // 把role_name存入session
             SecurityUtils.getSubject().getSession().setAttribute(Constants.SESSION_USER_ROLE, userPermissionBo.getRoleName());
             // 把permission_code存入session
-            SecurityUtils.getSubject().getSession().setAttribute(Constants.SESSION_USER_PERMISSION, userPermissionBo.getPerimissionCodeList());
+            SecurityUtils.getSubject().getSession().setAttribute(Constants.SESSION_USER_PERMISSION, userPermissionBo.getPermissionCodeList());
             
             return "user/index";
         } catch (IncorrectCredentialsException ice) {

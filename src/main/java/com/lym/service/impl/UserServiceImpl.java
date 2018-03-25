@@ -49,6 +49,7 @@ public class UserServiceImpl implements UserService {
         user.setTokenEnableTime(tokenEnableTime);
         userDao.add(user);
         
+        String subject = "主题：验证码";
         StringBuffer sb = new StringBuffer();
         sb.append("<div>您的验证码为：</div>");
         sb.append(token);
@@ -56,11 +57,19 @@ public class UserServiceImpl implements UserService {
         String text = sb.toString();
         
         try {
-            MailUtil.sendMail(email, text);
+            MailUtil.sendMail(email, "发现人XXX", "收件人XXX", subject, text);
         } catch (MessagingException e) {
             logger.error(e);
             throw e;
         }
+          
+//         测试回滚
+//        try {
+//            Map<String, Object> paramMap = new HashMap<String, Object>();
+//            String result = HttpUtil.httpClientPut("http://10.240.4.3:8080/account", paramMap);
+//        } catch (Exception e) {
+//            throw e;
+//        }
         
         return true;
     }
