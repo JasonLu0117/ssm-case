@@ -3,7 +3,6 @@ package com.lym.shiro;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.authc.AuthenticationException;
 import org.apache.shiro.authc.AuthenticationInfo;
 import org.apache.shiro.authc.AuthenticationToken;
@@ -18,27 +17,39 @@ import org.apache.shiro.subject.PrincipalCollection;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import com.lym.entity.User;
+import com.lym.service.PermissionService;
 import com.lym.service.UserService;
-import com.lym.util.constants.Constants;
 
 public class UserRealm extends AuthorizingRealm {
 
     @Autowired
     private UserService userService;
     
+    @Autowired
+    private PermissionService permissionService;
+    
+    @Autowired
+    private RedisUtil redisUtil;
+    
     // 授权
     @Override
     protected AuthorizationInfo doGetAuthorizationInfo(PrincipalCollection arg0) {
         SimpleAuthorizationInfo info = new SimpleAuthorizationInfo();
         // 获取登录的用户名
-        String username = (String) getAvailablePrincipal(arg0);
+        String jwt = (String) arg0.getPrimaryPrincipal();
+        String username = (String) JWTUtil.parseToken(jwt).get("username");
         User user = userService.getUserByUsername(username);
         
         List<String> roles = new ArrayList<String>();
-        String roleName = (String) SecurityUtils.getSubject().getSession().getAttribute(Constants.SESSION_USER_ROLE);
+//        String roleName = (String) SecurityUtils.getSubject().getSession().getAttribute(Constants.SESSION_USER_ROLE);
+//        String roleName = userPermissionBo.getRoleName();
+        String roleName = (String) JWTUtil.parseToken(jwt).get("role");
         roles.add(roleName);
-        List<String> permissions = (List<String>) SecurityUtils.getSubject().getSession().getAttribute(Constants.SESSION_USER_PERMISSION);
-//        List<String> permissions = new ArrayList<String>(); 
+        
+//        List<String> permissions = (List<String>) SecurityUtils.getSubject().getSession().getAttribute(Constants.SESSION_USER_PERMISSION);
+//        List<String> permissions = userPermissionBo.getPermissionCodeList();
+        List<String> permissions = (List<String>) JWTUtil.parseToken(jwt).get("permission");
+//        List<String> permissions = new ArrayList<String>();
         
         if (user.getUsername().equals(username)) {
 //            roles.add("角色1");
@@ -57,13 +68,20 @@ public class UserRealm extends AuthorizingRealm {
     // 登录
     @Override
     protected AuthenticationInfo doGetAuthenticationInfo(AuthenticationToken arg0) throws AuthenticationException {
-        UsernamePasswordToken token = (UsernamePasswordToken) arg0; 
-        User user = userService.getUserByUsername(token.getUsername());
+        UsernamePasswordToken token = (UsernamePasswordToken) arg0;
+        String jwt = (String) token.getPrincipal();
+        if (!JWTUtil.verifyToken(jwt)) {
+            throw new RuntimeException("Authentication error!");
+        }
+        
+        String username = (String) JWTUtil.parseToken(jwt).get("username");
+        User user = userService.getUserByUsername(username);
         if (user == null) {
             throw new UnknownAccountException("user is null!");
         }
         // principal：认证的实体信息，可以是username，也可以是其他。
-        Object principal = user.getUsername();
+//        Object principal = user.getUsername();
+        Object principal = token.getUsername();
         // credentials：密码。
         Object credentials = user.getPassword();
         // realmName：当前realm对象的name，调用父类的getName()方法即可。
@@ -72,14 +90,6 @@ public class UserRealm extends AuthorizingRealm {
 //        ByteSource credentialsSalt = ByteSource.Util.bytes(user.getUsername());
         // AuthenticatingRealm使用CredentialsMatcher进行密码匹配，也可以自定义实现。
         SimpleAuthenticationInfo info = new SimpleAuthenticationInfo(principal, credentials, realmName);
-        
-        // session中不需要保存密码。
-        // user.remove("password");
-        user.setPassword("");
-        // 将用户信息放入session中。
-        SecurityUtils.getSubject().getSession().setAttribute(Constants.SESSION_USER_INFO, user);
-        // 设置session超时时间为30分钟。
-        SecurityUtils.getSubject().getSession().setTimeout(6000 * 30);
         
         return info;
     }

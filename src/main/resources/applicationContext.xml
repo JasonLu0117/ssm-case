@@ -63,32 +63,24 @@
 		<property name="testOnBorrow" value="true" />
 	</bean>
 
-	<!-- redis连接池 -->
-	<bean id="jedisPool" class="redis.clients.jedis.JedisPool"
-		destroy-method="close">
-		<constructor-arg name="poolConfig" ref="poolConfig" />
-		<constructor-arg name="host" value="127.0.0.1" />
-		<constructor-arg name="port" value="6379" />
-	</bean>
+	<!--Jedis连接池的相关配置-->
+    <bean id="jedisPoolConfig" class="redis.clients.jedis.JedisPoolConfig">
+        <!--新版是maxTotal，旧版是maxActive-->
+        <property name="maxTotal">
+            <value>${redis.pool.maxActive}</value>
+        </property>
+        <property name="maxIdle">
+            <value>${redis.pool.maxIdle}</value>
+        </property>
+        <property name="testOnBorrow" value="true"/>
+        <property name="testOnReturn" value="true"/>
+    </bean>
 
-	<!-- redis服务器中心 -->
-	<bean id="connectionFactory"
-		class="org.springframework.data.redis.connection.jedis.JedisConnectionFactory">
-		<property name="poolConfig" ref="poolConfig" />
-		<property name="port" value="6379" />
-		<property name="hostName" value="127.0.0.1" />
-		<!-- <property name="password" value="${redis.password}" /> -->
-		<property name="timeout" value="10000"></property>
-	</bean>
-	<bean id="redisTemplate" class="org.springframework.data.redis.core.RedisTemplate">
-		<property name="connectionFactory" ref="connectionFactory" />
-		<property name="keySerializer">
-			<bean class="org.springframework.data.redis.serializer.StringRedisSerializer" />
-		</property>
-		<property name="valueSerializer">
-			<bean class="org.springframework.data.redis.serializer.StringRedisSerializer" />
-		</property>
-	</bean>
+    <bean id="jedisPool" class="redis.clients.jedis.JedisPool">
+        <constructor-arg name="poolConfig" ref="jedisPoolConfig" />
+        <constructor-arg name="host" value="${redis.host}" />
+        <constructor-arg name="port" value="${redis.port}" type="int" />
+    </bean>
 
 	<!-- cache配置 -->
 	<!--
@@ -121,41 +113,37 @@
         <property name="sqlSessionFactoryBeanName" value="sqlSessionFactory"/>
     </bean>
     
+    <bean id="redisClient" class="com.lym.shiro.RedisClient">
+        <constructor-arg name="jedisPool" ref="jedisPool"/>
+        <property name="expire" value="1800000"/>
+    </bean>
+    
     <!-- shiro配置 -->
-    <!-- 配置Realm -->
-    <!-- 直接配置继承了org.apache.shiro.realm.AuthorizingRealm的bean -->
-	<bean id="userRealm" class="com.lym.shiro.UserRealm">
-		<!-- 配置自定义密码匹配器 -->
-		<property name="credentialsMatcher" ref="credentialsMatcher" />
-	</bean>
+    <!-- shiro-redis redisCacheManager，配置自定义缓存管理器，其中引入redis缓存管理器-->
+    <!-- 
+    <bean id="redisCacheManager" class="org.crazycake.shiro.RedisCacheManager">
+        <property name="keyPrefix" value="shiro_redis_session:"/>
+        <property name="redisManager" ref="redisClient"/>
+    </bean>
+    -->
+    
+    <bean id="userRealm" class="com.lym.shiro.UserRealm">
+        <property name="credentialsMatcher" ref="credentialsMatcher" />
+        <property name="cachingEnabled" value="false"/>
+        <!-- <property name="cacheManager" ref="redisCacheManager"/> -->
+    </bean>
 
 	<!-- 自定义密码匹配器 -->
 	<bean id="credentialsMatcher" class="com.lym.shiro.CustomCredentialsMatcher" />
     
-    <!-- 暂时不用密码匹配器
-    <bean id="userRealm" class="com.lym.shiro.UserRealm">
-        //配置密码匹配器
-        <property name="credentialsMatcher">
-            <bean class="org.apache.shiro.authc.credential.HashedCredentialsMatcher">
-                //加密算法为MD5
-                <property name="hashAlgorithmName" value="MD5"></property>
-                //加密迭代次数 
-                <property name="hashIterations" value="1024"></property>
-                //为true时使用Hex编码(默认)，false时使用Base64编码
-                <property name="storedCredentialsHexEncoded" value="true"/>
-            </bean>
-        </property>
-    </bean>
-    -->
-    
-    <!-- 配置CacheManager缓存管理器 -->
-    <bean id="cacheManager" class="org.apache.shiro.cache.ehcache.EhCacheManager">
-        <property name="cacheManagerConfigFile" value="classpath:ehcache.xml" />
-    </bean>
+    <!-- 禁用掉会话调度器 -->
+    <bean id="sessionManager" class="org.apache.shiro.session.mgt.DefaultSessionManager">
+		<property name="sessionValidationSchedulerEnabled" value="false" />
+	</bean>
     
     <!-- 配置SecurityManager安全管理器 -->
     <bean id="securityManager" class="org.apache.shiro.web.mgt.DefaultWebSecurityManager">
-        <property name="cacheManager" ref="cacheManager" />
+        <!-- <property name="cacheManager" ref="redisCacheManager" /> -->
         <!-- <property name="authenticator" ref="authenticator"></property> -->
         <!-- 可以配置多个Realm，其实会把realms属性赋值给ModularRealmAuthenticator的realms属性 -->
         <!-- <property name="realm" ref="userRealm"/> -->
@@ -178,6 +166,13 @@
         <!-- 权限认证失败，则跳转到指定页面，非必须的属性，可在代码中自行编写 -->
         <!-- <property name="unauthorizedUrl" value="/login.jsp" /> -->
         <!-- 具体配置需要拦截哪些 URL，以及访问对应的URL时使用Shiro的什么Filter进行拦截 -->
+        <property name="filters">
+            <map>
+                <entry key="authc">
+                    <bean class="com.lym.shiro.JWTShiroFilter"></bean>
+                </entry>
+            </map>
+        </property>
         <property name="filterChainDefinitions">
             <value>
 				<!-- 过滤链定义，第一次匹配优先的原则，从上向下顺序执行，匹配了其中一项，则后面的不再匹配，一般将 / ** 放在最为下边:这是一个坑呢，一不小心代码就不好使了 -->

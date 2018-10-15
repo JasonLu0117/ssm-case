@@ -2,6 +2,8 @@ package com.lym.controller;
 
 import java.io.IOException;
 import java.sql.Timestamp;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import javax.imageio.ImageIO;
 import javax.servlet.http.HttpServletRequest;
@@ -26,6 +28,8 @@ import com.lym.annotation.Cros;
 import com.lym.entity.User;
 import com.lym.service.PermissionService;
 import com.lym.service.UserService;
+import com.lym.shiro.JWTUtil;
+import com.lym.shiro.RedisUtil;
 import com.lym.util.CaptchaUtil;
 import com.lym.util.constants.Constants;
 import com.lym.vo.BaseVo;
@@ -38,6 +42,9 @@ public class UserController {
 
     private static final String FAILURE = "FAILURE";
     private static final String SUCCESS = "SUCCESS";
+    
+    @Autowired
+    private RedisUtil redisUtil;
     
     @Autowired
     private UserService userService;
@@ -257,23 +264,29 @@ public class UserController {
         String code = request.getParameter("code");
         int roleId = Integer.valueOf(request.getParameter("roleId"));
         Subject subject = SecurityUtils.getSubject();
-        UsernamePasswordToken token = new UsernamePasswordToken(username, password);
         
         try {
             try {
-                CaptchaUtil.checkCode(code);
+//                CaptchaUtil.checkCode(code);
             } catch (Exception e) {
                 return "code error";
             }
-            subject.login(token);
-            // 从session中取出user
-            User user = (User) SecurityUtils.getSubject().getSession().getAttribute(Constants.SESSION_USER_INFO);
-            // 获取role和permission
+            
+            User user = userService.getUserByUsername(username);
             UserPermissionBo userPermissionBo = permissionService.getUserPermission(user.getId(), roleId);
-            // 把role_name存入session
-            SecurityUtils.getSubject().getSession().setAttribute(Constants.SESSION_USER_ROLE, userPermissionBo.getRoleName());
-            // 把permission_code存入session
-            SecurityUtils.getSubject().getSession().setAttribute(Constants.SESSION_USER_PERMISSION, userPermissionBo.getPermissionCodeList());
+            Map<String, Object> map = new LinkedHashMap<String, Object>();
+            map.put("username", username);
+            map.put("password", password);
+            map.put("role", userPermissionBo.getRoleName());
+            map.put("permission", userPermissionBo.getPermissionCodeList());
+            String jwt = JWTUtil.createToken(map);
+            UsernamePasswordToken token = new UsernamePasswordToken(jwt, jwt);
+            subject.login(token);
+
+            System.out.println("jwt:" + jwt);
+            redisUtil.addStr("shiro_redis_jwt:" + username, jwt);
+            // 过期时间为7200秒，即2小时
+            redisUtil.expire("shiro_redis_jwt:" + username, 7200);
             
             return "user/index";
         } catch (IncorrectCredentialsException ice) {
@@ -298,9 +311,17 @@ public class UserController {
     
     @RequestMapping(value="/user/logout", method=RequestMethod.GET)
     @ResponseBody
-    public String logout() {
+    public String logout(HttpServletRequest request) {
+        // 删除redis中的jwt
+        if (request.getHeader("Authorization") != null) {
+            redisUtil.delStr("shiro_redis_jwt:" + JWTUtil.parseToken(request.getHeader("Authorization")).get("username").toString());
+        }
+//        if (request.getParameter("username") != null) {
+//            redisUtil.delStr("shiro_redis_jwt:" + request.getParameter("username"));
+//        }
+        
         // 删除session
-        SecurityUtils.getSubject().getSession().removeAttribute(Constants.SESSION_USER_INFO);
+        // SecurityUtils.getSubject().getSession().removeAttribute(Constants.SESSION_USER_INFO);
         // Shiro中的登出方法，才会真实的将JSESSIONID删除
         SecurityUtils.getSubject().logout();
         return "logout";
