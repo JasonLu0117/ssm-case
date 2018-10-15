@@ -2,6 +2,7 @@ package com.lym.shiro;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.shiro.authc.AuthenticationException;
 import org.apache.shiro.authc.AuthenticationInfo;
@@ -35,21 +36,30 @@ public class UserRealm extends AuthorizingRealm {
     @Override
     protected AuthorizationInfo doGetAuthorizationInfo(PrincipalCollection arg0) {
         SimpleAuthorizationInfo info = new SimpleAuthorizationInfo();
-        // 获取登录的用户名
+        // 获取jwt，再从中获取username、roleId
         String jwt = (String) arg0.getPrimaryPrincipal();
-        String username = (String) JWTUtil.parseToken(jwt).get("username");
+        String username = JWTUtil.getClaim(jwt, "username");
         User user = userService.getUserByUsername(username);
         
+        // 根据user和roleId从库中查询对应的role和permission
+//        UserPermissionBo userPermissionBo = null;
+//        try {
+//            userPermissionBo = permissionService.getUserPermission(user.getId(), Integer.valueOf(JWTUtil.getClaim(jwt, "roleId")));
+//        } catch (Exception e) {
+//            throw new RuntimeException("Get permission error!");
+//        }
+        
+        // 另外，因为在usercontroller中，登录之后，以jwt为key，存储了role和permission，可以在这里直接从redis中获取，而不用去库中查询
+        Map<String, Object> map = redisUtil.getSerialMap(jwt);
+        String roleName = (String) map.get("role");
+        List<String> permissions = (List<String>) map.get("permission");
+
         List<String> roles = new ArrayList<String>();
-//        String roleName = (String) SecurityUtils.getSubject().getSession().getAttribute(Constants.SESSION_USER_ROLE);
 //        String roleName = userPermissionBo.getRoleName();
-        String roleName = (String) JWTUtil.parseToken(jwt).get("role");
         roles.add(roleName);
         
-//        List<String> permissions = (List<String>) SecurityUtils.getSubject().getSession().getAttribute(Constants.SESSION_USER_PERMISSION);
 //        List<String> permissions = userPermissionBo.getPermissionCodeList();
-        List<String> permissions = (List<String>) JWTUtil.parseToken(jwt).get("permission");
-//        List<String> permissions = new ArrayList<String>();
+//        List<String> permissions = new ArrayList<String>(); 
         
         if (user.getUsername().equals(username)) {
 //            roles.add("角色1");
@@ -68,18 +78,16 @@ public class UserRealm extends AuthorizingRealm {
     // 登录
     @Override
     protected AuthenticationInfo doGetAuthenticationInfo(AuthenticationToken arg0) throws AuthenticationException {
+        // 因为在usercontroller中用jwt实例化了UsernamePasswordToken，所以这里需要从UsernamePasswordToken中获取jwt，再从jwt中解析出username和password
         UsernamePasswordToken token = (UsernamePasswordToken) arg0;
-        String jwt = (String) token.getPrincipal();
-        if (!JWTUtil.verifyToken(jwt)) {
-            throw new RuntimeException("Authentication error!");
-        }
-        
-        String username = (String) JWTUtil.parseToken(jwt).get("username");
+        String username = JWTUtil.getClaim(token.getUsername(), "username");
         User user = userService.getUserByUsername(username);
+        
         if (user == null) {
             throw new UnknownAccountException("user is null!");
         }
-        // principal：认证的实体信息，可以是username，也可以是其他。
+        
+        // principal：认证的实体信息，可以是username，也可以是其他。使用token取代session后，这里使用jwt
 //        Object principal = user.getUsername();
         Object principal = token.getUsername();
         // credentials：密码。
@@ -90,6 +98,16 @@ public class UserRealm extends AuthorizingRealm {
 //        ByteSource credentialsSalt = ByteSource.Util.bytes(user.getUsername());
         // AuthenticatingRealm使用CredentialsMatcher进行密码匹配，也可以自定义实现。
         SimpleAuthenticationInfo info = new SimpleAuthenticationInfo(principal, credentials, realmName);
+        
+        /*
+        // session中不需要保存密码。
+        // user.remove("password");
+        user.setPassword("");
+        // 将用户信息放入session中。
+        SecurityUtils.getSubject().getSession().setAttribute(Constants.SESSION_USER_INFO, user);
+        // 设置session超时时间为30分钟。
+        SecurityUtils.getSubject().getSession().setTimeout(6000 * 30);
+        */
         
         return info;
     }

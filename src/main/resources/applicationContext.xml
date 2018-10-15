@@ -120,16 +120,17 @@
     
     <!-- shiro配置 -->
     <!-- shiro-redis redisCacheManager，配置自定义缓存管理器，其中引入redis缓存管理器-->
+    <!-- 改用jwt，不再需要使用redisCacheManager，但是加上目前也没发现有什么影响 -->
     <!-- 
     <bean id="redisCacheManager" class="org.crazycake.shiro.RedisCacheManager">
         <property name="keyPrefix" value="shiro_redis_session:"/>
         <property name="redisManager" ref="redisClient"/>
-    </bean>
-    -->
+    </bean> -->
     
     <bean id="userRealm" class="com.lym.shiro.UserRealm">
         <property name="credentialsMatcher" ref="credentialsMatcher" />
         <property name="cachingEnabled" value="false"/>
+        <!-- 改用jwt，不再需要使用redisCacheManager -->
         <!-- <property name="cacheManager" ref="redisCacheManager"/> -->
     </bean>
 
@@ -143,6 +144,7 @@
     
     <!-- 配置SecurityManager安全管理器 -->
     <bean id="securityManager" class="org.apache.shiro.web.mgt.DefaultWebSecurityManager">
+        <!-- 改用jwt，不再需要使用redisCacheManager -->
         <!-- <property name="cacheManager" ref="redisCacheManager" /> -->
         <!-- <property name="authenticator" ref="authenticator"></property> -->
         <!-- 可以配置多个Realm，其实会把realms属性赋值给ModularRealmAuthenticator的realms属性 -->

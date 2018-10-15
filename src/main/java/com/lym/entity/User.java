@@ -6,7 +6,6 @@ import java.sql.Timestamp;
 public class User implements Serializable {
     
     private int id;
-    private int roleId;
     private String username;
     private String nickname;
     private String password;
@@ -20,17 +19,12 @@ public class User implements Serializable {
     private String token;
     private long tokenEnableTime;
     
+    
     public int getId() {
         return id;
     }
     public void setId(int id) {
         this.id = id;
-    }
-    public int getRoleId() {
-        return roleId;
-    }
-    public void setRoleId(int roleId) {
-        this.roleId = roleId;
     }
     public String getUsername() {
         return username;

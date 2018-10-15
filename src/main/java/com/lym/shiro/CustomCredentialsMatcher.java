@@ -21,7 +21,7 @@ public class CustomCredentialsMatcher extends SimpleCredentialsMatcher {
     public boolean doCredentialsMatch(AuthenticationToken authcToken, AuthenticationInfo info) {
         UsernamePasswordToken token = (UsernamePasswordToken) authcToken;
         // 输入的密码
-        String tokenCredentials = String.valueOf(JWTUtil.parseToken(token.getUsername()).get("password"));
+        String tokenCredentials = String.valueOf(JWTUtil.getClaim(token.getUsername(), "secret"));
         // 数据库中的密码
         String dbCredentials = info.getCredentials().toString();
         // 将密码加密与系统加密后的密码校验，内容一致就返回true,不一致就返回false

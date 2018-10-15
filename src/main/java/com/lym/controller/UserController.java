@@ -2,7 +2,7 @@ package com.lym.controller;
 
 import java.io.IOException;
 import java.sql.Timestamp;
-import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.Map;
 
 import javax.imageio.ImageIO;
@@ -272,22 +272,24 @@ public class UserController {
                 return "code error";
             }
             
-            User user = userService.getUserByUsername(username);
-            UserPermissionBo userPermissionBo = permissionService.getUserPermission(user.getId(), roleId);
-            Map<String, Object> map = new LinkedHashMap<String, Object>();
-            map.put("username", username);
-            map.put("password", password);
-            map.put("role", userPermissionBo.getRoleName());
-            map.put("permission", userPermissionBo.getPermissionCodeList());
-            String jwt = JWTUtil.createToken(map);
+            // 生成jwt，其中包含username、password、roleId
+            String jwt = JWTUtil.sign(username, password, String.valueOf(roleId), String.valueOf(System.currentTimeMillis()));
+            // 使用jwt作为shiro的UsernamePasswordToken的username和password参数，去登录认证
             UsernamePasswordToken token = new UsernamePasswordToken(jwt, jwt);
             subject.login(token);
+            // 如果登录出错，则抛出异常，不会往下执行。若到这里没有异常，说明登录成功，接着往下查询库中的role和permission
+            User user = userService.getUserByUsername(username);
+            UserPermissionBo userPermissionBo = permissionService.getUserPermission(user.getId(), roleId);
+            // 把role和permission放入map中，以jwt为key，map为value，存入redis，以此取代session
+            // 以jwt为key，则可以实现多客户端登录
+            Map<String, Object> map = new HashMap<String, Object>();
+            map.put("role", userPermissionBo.getRoleName());
+            map.put("permission", userPermissionBo.getPermissionCodeList());
+            redisUtil.setSerialMap(jwt, map);
+            redisUtil.expire(jwt, 3600);
 
-            System.out.println("jwt:" + jwt);
-            redisUtil.addStr("shiro_redis_jwt:" + username, jwt);
-            // 过期时间为7200秒，即2小时
-            redisUtil.expire("shiro_redis_jwt:" + username, 7200);
-            
+            // 打印jwt以便测试
+            System.out.println(jwt);
             return "user/index";
         } catch (IncorrectCredentialsException ice) {
             // 密码错误异常
@@ -314,12 +316,8 @@ public class UserController {
     public String logout(HttpServletRequest request) {
         // 删除redis中的jwt
         if (request.getHeader("Authorization") != null) {
-            redisUtil.delStr("shiro_redis_jwt:" + JWTUtil.parseToken(request.getHeader("Authorization")).get("username").toString());
+            redisUtil.delStr(request.getHeader("Authorization"));
         }
-//        if (request.getParameter("username") != null) {
-//            redisUtil.delStr("shiro_redis_jwt:" + request.getParameter("username"));
-//        }
-        
         // 删除session
         // SecurityUtils.getSubject().getSession().removeAttribute(Constants.SESSION_USER_INFO);
         // Shiro中的登出方法，才会真实的将JSESSIONID删除

@@ -13,18 +13,44 @@ public class JWTShiroFilter extends AccessControlFilter {
     private RedisUtil redisUtil;
     
     @Override
-    protected boolean isAccessAllowed(ServletRequest request,
-            ServletResponse response, Object mappedValue) throws Exception {
+    protected boolean isAccessAllowed(ServletRequest request, ServletResponse response, Object mappedValue) throws Exception {
         return false;
     }
 
+    // 未实现单设备登录的判断方法
     @Override
-    protected boolean onAccessDenied(ServletRequest servletRequest,
-            ServletResponse servletResponse) throws Exception {
+    protected boolean onAccessDenied(ServletRequest servletRequest, ServletResponse servletResponse) throws Exception {
         HttpServletRequest request = (HttpServletRequest) servletRequest;
         String jwt = request.getHeader("Authorization");
-        if (jwt != null && JWTUtil.parseToken(jwt) != null && JWTUtil.parseToken(jwt).get("username") != null && redisUtil.isExist("shiro_redis_jwt:" + JWTUtil.parseToken(jwt).get("username").toString())) {
-            if (redisUtil.getStr("shiro_redis_jwt:" + JWTUtil.parseToken(jwt).get("username").toString()) != null && jwt.equals(redisUtil.getStr("shiro_redis_jwt:" + JWTUtil.parseToken(jwt).get("username").toString())) && JWTUtil.verifyToken(redisUtil.getStr("shiro_redis_jwt:" + JWTUtil.parseToken(jwt).get("username").toString()))) {
+        // 登录拦截和判断，当header中没有jwt，或者header中的jwt在redis中无法找到时，需要重新登录
+        if (jwt != null && redisUtil.isExist(jwt)) {
+            // 完成上一步验证后，按jwt的方式，验证该jwt是否正确，正确则说明该jwt正确，且未过期，直接返回true，不再走登录流程（当然加上登录没有影响）
+            if (JWTUtil.verify(jwt)) {
+//                UsernamePasswordToken usernamePasswordToken = new UsernamePasswordToken(jwt, jwt);
+//                try {
+//                    // 委托realm进行登录认证
+//                    getSubject(servletRequest, servletResponse).login(usernamePasswordToken);
+                    return true;
+//                } catch (Exception e) {
+//                    return false;
+//                }
+            }
+            redirectToLogin(servletRequest, servletResponse);
+        }
+        redirectToLogin(servletRequest, servletResponse);
+        return false;
+    }
+
+    // 实现了单设备登录的判断方法
+    /*
+    @Override
+    protected boolean onAccessDenied(ServletRequest servletRequest, ServletResponse servletResponse) throws Exception {
+        HttpServletRequest request = (HttpServletRequest) servletRequest;
+        String jwt = request.getHeader("Authorization");
+        // 登录拦截和判断，当header中没有jwt，或者header中的jwt在redis中无法找到时，需要重新登录
+        if (jwt != null && JWTUtil.getClaim(jwt, "username") != null && redisUtil.isExist(JWTUtil.getClaim(jwt, "username"))) {
+            // 完成上一步验证后，按jwt的方式，验证该jwt是否正确，正确则说明该jwt正确，且未过期，直接返回true，不再走登录流程（当然加上登录没有影响）
+            if (redisUtil.getStr(JWTUtil.getClaim(jwt, "username")) != null && jwt.equals(redisUtil.getStr(JWTUtil.getClaim(jwt, "username"))) && JWTUtil.verify(jwt)) {
 //                UsernamePasswordToken usernamePasswordToken = new UsernamePasswordToken(jwt, jwt);
 //                try {
 //                    // 委托realm进行登录认证
@@ -40,5 +66,6 @@ public class JWTShiroFilter extends AccessControlFilter {
         redirectToLogin(servletRequest, servletResponse);
         return false;
     }
+    */
 
 }

@@ -1,85 +1,106 @@
 package com.lym.shiro;
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.JwtBuilder;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
-
-import java.security.Key;
+import java.io.UnsupportedEncodingException;
+import java.util.Base64;
 import java.util.Date;
-import java.util.Map;
 
-import javax.crypto.spec.SecretKeySpec;
-import javax.xml.bind.DatatypeConverter;
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.JWTVerifier;
+import com.auth0.jwt.algorithms.Algorithm;
+import com.auth0.jwt.interfaces.DecodedJWT;
 
-/**
- * 用来生成token令牌和解码验证token令牌
- * JWT由三部分组成，头部header、载荷payload与签名signature
- */
 public class JWTUtil {
+
+    // 过期时间为：5min * 60s = 300s，该修改到配置文件中
+    private static String accessTokenExpireTime = "300";
+
+    // JWT认证加密私钥(Base64加密)，该修改到配置文件中
+    private static String encryptJWTKey = "secret";
+
+//    @Value("${accessTokenExpireTime}")
+//    public void setAccessTokenExpireTime(String accessTokenExpireTime) {
+//        JwtUtil.accessTokenExpireTime = accessTokenExpireTime;
+//    }
+
+//    @Value("${encryptJWTKey}")
+//    public void setEncryptJWTKey(String encryptJWTKey) {
+//        JwtUtil.encryptJWTKey = encryptJWTKey;
+//    }
+
+    /**
+     * 校验token是否正确
+     * @param token
+     * @return boolean 是否正确
+     */
+    public static boolean verify(String token) {
+        try {
+            // 帐号加JWT私钥解密
+            String secret = getClaim(token, "username") + decode(encryptJWTKey);
+            Algorithm algorithm = Algorithm.HMAC256(secret);
+            JWTVerifier verifier = JWT.require(algorithm).build();
+            DecodedJWT jwt = verifier.verify(token);
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("JWTToken认证解密异常");
+        }
+    }
+
+    /**
+     * 获取Token中的信息，无需secret解密也能获取
+     * @param token
+     * @param claim
+     * @return java.lang.String
+     */
+    public static String getClaim(String token, String claim) {
+        try {
+            DecodedJWT jwt = JWT.decode(token);
+            // 只能输出String类型，如果是其他类型返回null
+            return jwt.getClaim(claim).asString();
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("解密Token中的信息出现JWTDecodeException异常");
+        }
+    }
+
+    /**
+     * 生成签名Token
+     * @param username 帐号
+     * @param password 密码
+     * @param roleId 角色id
+     * @param currentTimeMillis 时间戳
+     * @return java.lang.String 返回加密的Token
+     */
+    public static String sign(String username, String password, String roleId, String currentTimeMillis) {
+        try {
+            // 帐号加JWT私钥加密
+            String secret = username + decode(encryptJWTKey);
+            // 此处过期时间是以毫秒为单位，所以乘以1000
+            Date date = new Date(System.currentTimeMillis() + Long.parseLong(accessTokenExpireTime) * 1000);
+            Algorithm algorithm = Algorithm.HMAC256(secret);
+            // 附带account帐号信息
+            return JWT.create()
+                    .withClaim("username", username)
+                    .withClaim("secret", password)
+                    .withClaim("roleId", roleId)
+                    .withClaim("currentTimeMillis", currentTimeMillis)
+                    .withExpiresAt(date)
+                    .sign(algorithm);
+        } catch (Exception e) {
+            throw new RuntimeException("JWTToken加密出现UnsupportedEncodingException异常");
+        }
+    }
     
-    private static final String SIGNING_KEY ="www.yzsbank.com" ; //自定义加密密钥SIGNING_KEY
-    private static byte[] signingSecretBytes = DatatypeConverter.parseBase64Binary(SIGNING_KEY); //转换成Base64编码
-    private static final long EXP = 60*60*1000 * 3; //有效期为60分钟*3=3小时，jwt中设置的过期时间比redis中jwt的过期时间长，避免redis中jwt还没过期，进入jwt验证时就无法通过的问题。
-
-    /**
-     * 生成token，默认60分钟
-     * @param payload 载荷
-     * @return token
-     */
-    public static String createToken(Map<String, Object> payload) { //默认有效期为60分钟
-        return createToken(payload,EXP);
+    // base64加密
+    public static String encode(String str) throws UnsupportedEncodingException {
+        byte[] encodeBytes = Base64.getEncoder().encode(str.getBytes("utf-8"));
+        return new String(encodeBytes);
     }
 
-    /**
-     * 生成token
-     * @param payload 载荷
-     * @param exp 有效时长
-     * @return token
-     */
-    public static String createToken(Map<String, Object> payload, long exp) {
-        //签名算法使用SHA256算法加密
-        SignatureAlgorithm signatureAlgorithm = SignatureAlgorithm.HS256;
-        //加密JWT
-        Key signingKey = new SecretKeySpec(signingSecretBytes,signatureAlgorithm.getJcaName());
-        //设置JWT声明格式，生成JWT
-        JwtBuilder jwtBuilder = Jwts.builder()
-                .setHeaderParam("typ","jwt")
-                .setHeaderParam("alg","HS256")
-                .setClaims(payload)
-                .setExpiration(new Date(System.currentTimeMillis()+exp))  //token有效期
-                .signWith(signatureAlgorithm,signingKey); //签名算法及签名密钥，将header与payload加密拼接后形成JWT
-        return jwtBuilder.compact(); //返回JWT
+    // base64解密
+    public static String decode(String str) throws UnsupportedEncodingException {
+        byte[] decodeBytes = Base64.getDecoder().decode(str.getBytes("utf-8"));
+        return new String(decodeBytes);
     }
-
-    /**
-     * 解析token信息
-     * @param token JWT信息
-     * @return payload
-     */
-    public static Claims parseToken(String token) {
-        try {
-            return Jwts.parser()
-                    .setSigningKey(signingSecretBytes)
-                    .parseClaimsJws(token).getBody();
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    /**
-     * 解析token信息
-     * @param token JWT信息
-     * @return payload
-     */
-    public static boolean verifyToken(String token) {
-        try {
-             Jwts.parser()
-                    .setSigningKey(signingSecretBytes)
-                    .parseClaimsJws(token).getBody();
-             return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
+    
 }
